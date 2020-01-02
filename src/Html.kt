@@ -14,7 +14,7 @@ fun Application.html() {
                     h1 { +"HTML" }
                     ul {
                         for (n in 1..10) {
-                            li { +"$n" }
+                            li { +"$n  Hi we are testing it" }
                         }
                     }
                 }
