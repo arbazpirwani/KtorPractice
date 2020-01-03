@@ -5,7 +5,9 @@ import io.ktor.application.*
 import io.ktor.features.*
 import io.ktor.gson.*
 import io.ktor.http.Parameters
+import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
+import io.ktor.request.isMultipart
 import io.ktor.request.receiveMultipart
 import io.ktor.request.receiveParameters
 import io.ktor.response.*
@@ -20,13 +22,15 @@ import java.sql.Timestamp
 
 
 object NewsTable : Table("news_table") {
-    val id = integer("news_id").primaryKey()
+    val id = integer("news_id").autoIncrement().primaryKey()
     val title = varchar("title", length = 255)
     val description = text("description")
     val image_path = text("image_path")
 }
 
-data class News(val id: Int, val title: String, val description: String, val image_path: String)
+data class News(var id: Int, var title: String, var description: String, var image_path: String) {
+    constructor() : this(0, "", "", "")
+}
 
 
 fun Application.apiDemo() {
@@ -44,17 +48,29 @@ fun Application.apiDemo() {
         }
         post("/news") {
             val multipart = call.receiveMultipart()
+            val news = News()
 
-//            multipart.forEachPart {
-//                it.
-//            }
-
-            val news = insertNews(parameters = call.parameters)
-
-            if (news == null) {
-                call.respondText { "Please provide given fields [title, description, image_path]" }
+            if (!call.request.isMultipart()) {
+                call.respondText { "Not a multipart request" }
             } else {
-                call.respond(news)
+                multipart.forEachPart { part ->
+                    if (part is PartData.FormItem) {
+                        when (part.name) {
+                            "title" -> {
+                                news.title = part.value
+                            }
+                            "description" -> {
+                                news.description = part.value
+                            }
+                            "image_path" -> {
+                                news.image_path = part.value
+                            }
+                        }
+                    }
+
+                    part.dispose()
+                }
+                call.respond(insertNews(news))
             }
 
         }
@@ -78,8 +94,16 @@ fun getNews(): ArrayList<News> {
 
     transaction {
         val newsRows = NewsTable.selectAll().orderBy(NewsTable.id, false)
-        for (f in newsRows) {
-            newsArray.add(News(id = f[NewsTable.id], title = f[NewsTable.title], description = f[NewsTable.description], image_path = f[NewsTable.image_path]))
+
+        for (row in newsRows) {
+            newsArray.add(
+                News(
+                    id = row[NewsTable.id],
+                    title = row[NewsTable.title],
+                    description = row[NewsTable.description],
+                    image_path = row[NewsTable.image_path]
+                )
+            )
         }
     }
     return newsArray
@@ -90,22 +114,22 @@ fun getNews(): ArrayList<News> {
  *  API to insert news row in NewsTable
  */
 
-fun insertNews(parameters: Parameters): News? {
+fun insertNews(news: News): Any {
+    var generatedId: Int? = null
 
-    var news: News? = null
-
-    if (parameters.contains("title") && parameters.contains("description") && parameters.contains("image_path")){
-        news = News(0, parameters["title"]!!, parameters["description"]!!,  parameters["image_path"]!!)
-    }
-    news?.let {
-        transaction {
-            NewsTable.insert {
-                it[title] = news.title
-                it[description] = news.description
-                it[image_path] = news.image_path
-            }
-        }
+    transaction {
+        generatedId = NewsTable.insert {
+            it[title] = news.title
+            it[description] = news.description
+            it[image_path] = news.image_path
+        }.generatedKey?.toInt()
     }
 
-    return news
+    return if (generatedId != null) {
+        news.id = generatedId!!
+        news
+    } else {
+        "Something went wrong"
+    }
+
 }
