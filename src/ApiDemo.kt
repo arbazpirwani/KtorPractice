@@ -8,6 +8,7 @@ import io.ktor.response.*
 import io.ktor.routing.*
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.sql.Timestamp
@@ -34,7 +35,6 @@ fun Application.apiDemo() {
 
     routing {
         get("/news") {
-//            val model = News(1, "Arbaz", "Android", "https://dummyimage.com/600x400/000/fff")
             call.respond(getNews())
         }
     }
@@ -48,16 +48,22 @@ fun initDB() {
 }
 
 
+/**
+ *  API to get all the news from NewsTable
+ */
 fun getNews(): ArrayList<News> {
-//    var json: String = ""
     val newsArray = ArrayList<News>()
 
     transaction {
-        val newsRows = NewsTable.selectAll().orderBy(NewsTable.id, true).limit(5)
+        val newsRows = NewsTable.selectAll().orderBy(NewsTable.id, false)
         for (f in newsRows) {
             newsArray.add(News(id = f[NewsTable.id], title = f[NewsTable.title], description = f[NewsTable.description], image_path = f[NewsTable.image_path]))
         }
-//        json = Gson().toJson(newsArray)
     }
     return newsArray
+}
+
+
+fun insertNews(){
+    NewsTable.insert {  }
 }
