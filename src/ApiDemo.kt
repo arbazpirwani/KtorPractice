@@ -4,6 +4,10 @@ import com.google.gson.Gson
 import io.ktor.application.*
 import io.ktor.features.*
 import io.ktor.gson.*
+import io.ktor.http.Parameters
+import io.ktor.http.content.forEachPart
+import io.ktor.request.receiveMultipart
+import io.ktor.request.receiveParameters
 import io.ktor.response.*
 import io.ktor.routing.*
 import org.jetbrains.exposed.sql.Database
@@ -11,6 +15,7 @@ import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.lang.reflect.Parameter
 import java.sql.Timestamp
 
 
@@ -37,6 +42,22 @@ fun Application.apiDemo() {
         get("/news") {
             call.respond(getNews())
         }
+        post("/news") {
+            val multipart = call.receiveMultipart()
+
+//            multipart.forEachPart {
+//                it.
+//            }
+
+            val news = insertNews(parameters = call.parameters)
+
+            if (news == null) {
+                call.respondText { "Please provide given fields [title, description, image_path]" }
+            } else {
+                call.respond(news)
+            }
+
+        }
     }
 }
 
@@ -51,6 +72,7 @@ fun initDB() {
 /**
  *  API to get all the news from NewsTable
  */
+
 fun getNews(): ArrayList<News> {
     val newsArray = ArrayList<News>()
 
@@ -64,6 +86,26 @@ fun getNews(): ArrayList<News> {
 }
 
 
-fun insertNews(){
-    NewsTable.insert {  }
+/**
+ *  API to insert news row in NewsTable
+ */
+
+fun insertNews(parameters: Parameters): News? {
+
+    var news: News? = null
+
+    if (parameters.contains("title") && parameters.contains("description") && parameters.contains("image_path")){
+        news = News(0, parameters["title"]!!, parameters["description"]!!,  parameters["image_path"]!!)
+    }
+    news?.let {
+        transaction {
+            NewsTable.insert {
+                it[title] = news.title
+                it[description] = news.description
+                it[image_path] = news.image_path
+            }
+        }
+    }
+
+    return news
 }
